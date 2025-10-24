@@ -29,3 +29,19 @@ For large tools create new file and reference/import them in the mcp_server
 Add Env Variables into your custom .env file in the root directory
 they are loaded via the utils/config.py - so reference this in your tools, do not directly reference your env file
 
+
+Threat-Intel-Agent/
+├── server/
+│   ├── __init__.py              # Makes 'server' a Python package
+│   └── mcp_server.py            # Your MCP server (updated)
+├── tools/
+│   ├── __init__.py              # Makes 'tools' a Python package
+│   └── web_search.py            # NEW: Web search tool
+├── utils/
+│   ├── __init__.py              # Makes 'utils' a Python package
+│   └── config.py                # Configuration (updated)
+├── client/
+│   └── llm_agent_dynamic.py     # Your agent (updated)
+├── .env                         # Environment variables (updated)
+└── venv/                        # Virtual environment
+
