@@ -27,10 +27,16 @@ async def mcp_agent(user_query: str):
     # Connect to MCP server based on version
     if MCP_VERSION == "new":
         # Newer MCP SDK (1.0+)
+        import sys
+        import os
+        
+        # Get the project root directory
+        project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        
         server_params = StdioServerParameters(
             command="python",
-            args=["server/mcp_server.py"],
-            env=None
+            args=["-m", "server.mcp_server"],  # Run as module to fix imports
+            env={**os.environ, "PYTHONPATH": project_root}  # Add project root to PYTHONPATH
         )
         
         async with stdio_client(server_params) as (read, write):
@@ -54,34 +60,6 @@ async def mcp_agent(user_query: str):
                     server_info = DummyInfo()
                 
                 await run_agent_loop(session, server_info, tools, resources, user_query)
-    
-    elif MCP_VERSION == "medium":
-        # Medium MCP SDK
-        server_params = StdioServerParameters(
-            command="python",
-            args=["server/mcp_server.py"]
-        )
-        async with stdio_client(server_params) as (read, write):
-            async with ClientSession(read, write) as session:
-                await session.initialize()
-                
-                server_info = await session.get_server_info()
-                tools_response = await session.list_tools()
-                resources_response = await session.list_resources()
-                
-                tools = tools_response.tools
-                resources = resources_response.resources
-                
-                await run_agent_loop(session, server_info, tools, resources, user_query)
-    
-    else:
-        # Old MCP SDK
-        async with MCPClient.create_stdio_process(["python", "server/mcp_server.py"]) as client:
-            server_info = await client.get_server_info()
-            tools = await client.list_tools()
-            resources = await client.list_resources()
-            
-            await run_agent_loop(client, server_info, tools, resources, user_query)
 
 
 async def run_agent_loop(client, server_info, tools, resources, user_query: str):
@@ -191,6 +169,18 @@ If you have completed all necessary steps to answer the question, use "action": 
                     response = await client.call_tool(CallToolRequest(name=tool_name, arguments=arguments))
                     result = response.content
                 
+                # Convert TextContent objects to strings for JSON serialization
+                if isinstance(result, list):
+                    result_text = []
+                    for item in result:
+                        if hasattr(item, 'text'):
+                            result_text.append(item.text)
+                        else:
+                            result_text.append(str(item))
+                    result = "\n".join(result_text)
+                elif hasattr(result, 'text'):
+                    result = result.text
+                
                 print(f"✅ Tool result: {result}")
                 
             except Exception as e:
@@ -267,13 +257,16 @@ if __name__ == "__main__":
         "Add 5 and 10, tell me the weather in Durham, and search for recent AI news",
         
         # Your original complex query
-        "Add 5 and 10, then tell me the weather in Durham and motivate me, also search for who won the recent Pakistan vs India Cricket match"
+        "Add 5 and 10, then tell me the weather in Durham and motivate me, also search for who won the recent Pakistan vs India Cricket match",
+
+        "Tell me the current temperature in Bali, also tell me who won the recent Pakistan vs India Cricket match"
     ]
     
     # Run the first query (change index to test others)
-    query_to_test = test_queries[3]  # Change this number (0-3) to test different queries
+    query_to_test = test_queries[4]  # Change this number (0-3) to test different queries
     
     print("="*60)
     print(f"TESTING QUERY: {query_to_test}")
     print("="*60)
+    
     asyncio.run(mcp_agent(query_to_test))

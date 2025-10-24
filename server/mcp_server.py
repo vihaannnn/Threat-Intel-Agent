@@ -2,6 +2,14 @@ import asyncio
 import logging
 from datetime import datetime
 from typing import Dict, Any
+import sys
+import os
+
+# Add project root to path for imports
+if __name__ == "__main__":
+    project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    if project_root not in sys.path:
+        sys.path.insert(0, project_root)
 
 # MCP imports
 from mcp.server.fastmcp import FastMCP
@@ -48,7 +56,7 @@ async def add_numbers(a: int, b: int, api_key: str) -> Dict[str, Any]:
     return {
         "result": result,
         "operation": f"{a} + {b}",
-        "time": datetime.utcnow().isoformat()
+        "time": datetime.now(datetime.UTC if hasattr(datetime, 'UTC') else datetime.timezone.utc).isoformat()
     }
 
 @mcp.tool()
