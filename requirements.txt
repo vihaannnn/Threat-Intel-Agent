@@ -1,4 +1,5 @@
 mcp>=1.7.1
 openai>=1.12.0
+qdrant-client==1.15.1
 asyncio
 logging
