@@ -2,69 +2,46 @@ import asyncio, json
 from datetime import datetime
 from openai import AsyncOpenAI
 
-# Try different MCP client imports based on version
-try:
-    from mcp.client.stdio import stdio_client, StdioServerParameters
-    from mcp.client.session import ClientSession
-    MCP_VERSION = "new"
-except ImportError:
-    try:
-        from mcp import ClientSession, StdioServerParameters
-        from mcp.client.stdio import stdio_client
-        MCP_VERSION = "medium"
-    except ImportError:
-        from mcp.client import MCPClient
-        MCP_VERSION = "old"
+from mcp import ClientSession, stdio_client, StdioServerParameters
 
 from utils.config import OPENAI_KEY, OPENAI_MODEL, VALID_API_KEY
 
 # Initialize LLM client
 llm = AsyncOpenAI(api_key=OPENAI_KEY)
 
-print(f"Using MCP version: {MCP_VERSION}")
-
 async def mcp_agent(user_query: str):
-    # Connect to MCP server based on version
-    if MCP_VERSION == "new":
-        # Newer MCP SDK (1.0+)
-        import sys
-        import os
-        
-        # Get the project root directory
-        project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-        
-        server_params = StdioServerParameters(
-            command="python",
-            args=["-m", "server.mcp_server"],  # Run as module to fix imports
-            env={**os.environ, "PYTHONPATH": project_root}  # Add project root to PYTHONPATH
-        )
-        
-        async with stdio_client(server_params) as (read, write):
-            async with ClientSession(read, write) as session:
-                await session.initialize()
-                
-                # Get server info
-                result = await session.list_tools()
-                tools = result.tools
-                
-                result = await session.list_resources()
-                resources = result.resources
-                
-                # Try to get server info (may not be available in all versions)
-                try:
-                    server_info = await session.get_server_info()
-                except:
-                    # Create a dummy server info
-                    class DummyInfo:
-                        name = "AI_Toolbox"
-                    server_info = DummyInfo()
-                
-                await run_agent_loop(session, server_info, tools, resources, user_query)
+    # Connect to MCP server
+    import sys
+    import os
+    
+    # Get the project root directory
+    project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    
+    server_params = StdioServerParameters(
+        command="python",
+        args=["server/mcp_server.py"],
+        env={**os.environ, "PYTHONPATH": project_root}  # Add project root to PYTHONPATH
+    )
+    
+    async with stdio_client(server_params) as (read, write):
+        async with ClientSession(read, write) as session:
+            # Initialize the session and get server info
+            init_result = await session.initialize()
+            server_info = init_result.serverInfo
+            
+            # Get tools and resources
+            tools_result = await session.list_tools()
+            tools = tools_result.tools
+            
+            resources_result = await session.list_resources()
+            resources = resources_result.resources
+            
+            await run_agent_loop(session, server_info, tools, resources, user_query)
 
 
 async def run_agent_loop(client, server_info, tools, resources, user_query: str):
     """Main agent loop that works with any MCP version."""
-    # 1️⃣ Dynamic Discovery
+    # Dynamic Discovery
     tool_descriptions = [
         {"name": t.name, "description": t.description, "params": getattr(t, 'parameters', getattr(t, 'inputSchema', {}))}
         for t in tools
@@ -74,14 +51,14 @@ async def run_agent_loop(client, server_info, tools, resources, user_query: str)
         for r in resources
     ]
 
-    # 2️⃣ Scratchpad memory
+    # Scratchpad memory
     scratchpad = []
     max_steps = 6  # Increased for web search
 
-    print(f"\n🤖 Connected to MCP server: {server_info.name if hasattr(server_info, 'name') else 'AI_Toolbox'}")
-    print(f"📋 Available tools: {[t['name'] for t in tool_descriptions]}")
-    print(f"📚 Available resources: {[r['uri'] for r in resource_descriptions]}")
-    print(f"🧠 User query: {user_query}\n")
+    print(f"\nConnected to MCP server: {server_info.name if hasattr(server_info, 'name') else 'AI_Toolbox'}")
+    print(f"Available tools: {[t['name'] for t in tool_descriptions]}")
+    print(f"Available resources: {[r['uri'] for r in resource_descriptions]}")
+    print(f"User query: {user_query}\n")
 
     for step in range(max_steps):
         reasoning_prompt = f"""
@@ -97,7 +74,13 @@ Available RESOURCES (you can read these):
 IMPORTANT NOTES:
 - For ALL tools, you MUST include "api_key": "{VALID_API_KEY}" in the arguments
 - For web_search tool, arguments should be: {{"query": "your search", "api_key": "{VALID_API_KEY}", "count": 5, "engine": "auto"}}
-- For add_numbers tool, arguments should be: {{"a": 5, "b": 10, "api_key": "{VALID_API_KEY}"}}
+- For search_vulnerabilities tool, you should extract ecosystem from the query (if available) and pass it:
+  {{"query": "semantic query that would be run against the vulnerability database", "api_key": "{VALID_API_KEY}", "ecosystems": ["npm", "PyPI", "Maven", "Go", "Debian"]}}
+- For get_vulnerability_by_id tool, arguments should be: {{"vuln_id": "CVE-XXXX-XXXX", "api_key": "{VALID_API_KEY}"}}
+
+ECOSYSTEM EXTRACTION RULES for search_vulnerabilities:
+- ecosystems: Extract from "Node.js"→["npm"], "Python"→["PyPI"], "Java"→["Maven"], "Go"→["Go"], "Debian/Ubuntu"→["Debian"]
+- If no ecosystem is mentioned, leave ecosystems as empty array []
 
 Scratchpad (your notes so far):
 {json.dumps(scratchpad, indent=2)}
@@ -116,11 +99,11 @@ If you have completed all necessary steps to answer the question, use "action": 
         resp = await llm.chat.completions.create(
             model=OPENAI_MODEL,
             messages=[{"role": "system", "content": reasoning_prompt}],
-            temperature=0.3
+            temperature=0.0
         )
 
         plan_text = resp.choices[0].message.content
-        print(f"\n🔍 Step {step+1} Plan:")
+        print(f"\nStep {step+1} Plan:")
         print(f"   {plan_text[:200]}...")  # Show first 200 chars
 
         try:
@@ -132,7 +115,7 @@ If you have completed all necessary steps to answer the question, use "action": 
             
             plan = json.loads(plan_text)
         except json.JSONDecodeError as e:
-            print(f"❌ Failed to parse JSON: {e}")
+            print(f"Failed to parse JSON: {e}")
             print(f"Raw response: {plan_text}")
             break
 
@@ -143,12 +126,12 @@ If you have completed all necessary steps to answer the question, use "action": 
             "target": plan.get("target")
         })
 
-        # 3️⃣ Execution & Validation
+        # Execution & Validation
         if plan["action"] == "use_tool":
             tool_name = plan["target"]
             arguments = plan.get("arguments", {})
             
-            print(f"⚙️  Executing tool: {tool_name}")
+            print(f"Executing tool: {tool_name}")
             print(f"   Arguments: {json.dumps(arguments, indent=2)}")
             
             try:
@@ -181,17 +164,17 @@ If you have completed all necessary steps to answer the question, use "action": 
                 elif hasattr(result, 'text'):
                     result = result.text
                 
-                print(f"✅ Tool result: {result}")
+                print(f"Tool result: {result}")
                 
             except Exception as e:
                 result = {"error": str(e)}
-                print(f"❌ Tool error: {e}")
+                print(f"Tool error: {e}")
             
             scratchpad.append({"tool": tool_name, "result": result})
 
         elif plan["action"] == "use_resource":
             resource_uri = plan["target"]
-            print(f"📚 Reading resource: {resource_uri}")
+            print(f"Reading resource: {resource_uri}")
             
             try:
                 if not any(resource_uri.startswith(r["uri"].split("{")[0]) for r in resource_descriptions):
@@ -208,19 +191,19 @@ If you have completed all necessary steps to answer the question, use "action": 
                     response = await client.read_resource(ReadResourceRequest(uri=resource_uri))
                     result = response.contents
                 
-                print(f"✅ Resource data: {result}")
+                print(f"Resource data: {result}")
                 
             except Exception as e:
                 result = {"error": str(e)}
-                print(f"❌ Resource error: {e}")
+                print(f"Resource error: {e}")
             
             scratchpad.append({"resource": resource_uri, "result": result})
 
         elif plan["action"] == "finish":
-            print("🏁 Agent decided to finish.")
+            print("Agent decided to finish.")
             break
 
-    # 4️⃣ Final Answer Generation
+    # Final Answer Generation
     final_prompt = f"""
 You have finished analyzing the user's question: "{user_query}"
 
@@ -234,39 +217,33 @@ Format your answer in a user-friendly way.
     summary = await llm.chat.completions.create(
         model=OPENAI_MODEL,
         messages=[{"role": "system", "content": final_prompt}],
-        temperature=0.5
+        temperature=0.0
     )
     
     print("\n" + "="*60)
-    print("✅ FINAL ANSWER:")
+    print("FINAL ANSWER:")
     print("="*60)
     print(summary.choices[0].message.content)
     print("="*60)
 
 
 if __name__ == "__main__":
-    # Test different queries
     test_queries = [
-        # Simple test
-        "Add 5 and 10",
-        
-        # Web search test
-        "Search the web for 'Python MCP framework' and tell me what you find",
-        
-        # Combined test
-        "Add 5 and 10, tell me the weather in Durham, and search for recent AI news",
-        
-        # Your original complex query
-        "Add 5 and 10, then tell me the weather in Durham and motivate me, also search for who won the recent Pakistan vs India Cricket match",
+        "How do I remediate CVE-2025-59823?",
+        "List recent npm vulnerabilities that allow bypassing authentication or CSRF protection",
+        "What Python package vulnerabilities enable remote code execution in web applications?",
+        "Show me recent Java vulnerabilities related to deserialization or denial of service",
+        "Find Debian vulnerabilities that impact OpenSSL or the Linux kernel",
+        "Are there any Go module vulnerabilities exposing insecure HTTP endpoints or missing input validation?"
+        ]
 
-        "Tell me the current temperature in Bali, also tell me who won the recent Pakistan vs India Cricket match"
-    ]
-    
-    # Run the first query (change index to test others)
-    query_to_test = test_queries[4]  # Change this number (0-3) to test different queries
-    
-    print("="*60)
-    print(f"TESTING QUERY: {query_to_test}")
-    print("="*60)
-    
-    asyncio.run(mcp_agent(query_to_test))
+    for query in test_queries:
+        try:
+            print("="*60)
+            print(f"TESTING QUERY: {query}")
+            print("="*60)
+            asyncio.run(mcp_agent(query))
+            
+        except Exception as e:
+            print(f"Query {query} failed: {e}")
+            print("="*60)

@@ -13,8 +13,8 @@ SERPER_API_KEY  = os.getenv("SERPER_API_KEY")  # Optional - for web search
 
 # Validate critical envs
 if not OPENAI_KEY:
-    raise EnvironmentError("❌ Missing OPENAI_API_KEY in .env file")
+    raise EnvironmentError("Missing OPENAI_API_KEY in .env file")
 
 # Web search availability
 search_engine = "serper" if SERPER_API_KEY else "duckduckgo"
-print(f"✅ Environment loaded | Model: {OPENAI_MODEL} | Log Level: {LOG_LEVEL} | Search: {search_engine}")
+print(f"Environment loaded | Model: {OPENAI_MODEL} | Log Level: {LOG_LEVEL} | Search: {search_engine}")
