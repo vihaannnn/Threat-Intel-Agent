@@ -136,7 +136,10 @@ def embed_and_store_data(documents: List[Dict], openai_client: openai.OpenAI, qd
                 point = PointStruct(
                     id=point_id,
                     vector=embedding_data.embedding,
-                    payload=doc["metadata"]
+                    payload={
+                        **doc["metadata"],
+                        "content": doc["content"]  # Include content in payload
+                    }
                 )
                 points.append(point)
             
