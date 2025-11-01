@@ -36,11 +36,14 @@ async def mcp_agent(user_query: str):
             resources_result = await session.list_resources()
             resources = resources_result.resources
             
-            await run_agent_loop(session, server_info, tools, resources, user_query)
-
+            final_answer = await run_agent_loop(session, server_info, tools, resources, user_query)
+            return final_answer
 
 async def run_agent_loop(client, server_info, tools, resources, user_query: str):
     """Main agent loop that works with any MCP version."""
+
+    final_answer = None
+
     # Dynamic Discovery
     tool_descriptions = [
         {"name": t.name, "description": t.description, "params": getattr(t, 'parameters', getattr(t, 'inputSchema', {}))}
@@ -62,40 +65,40 @@ async def run_agent_loop(client, server_info, tools, resources, user_query: str)
 
     for step in range(max_steps):
         reasoning_prompt = f"""
-You are an autonomous AI agent connected to the MCP server.
-Your GOAL: answer this question — "{user_query}"
+        You are an autonomous AI agent connected to the MCP server.
+        Your GOAL: answer this question — "{user_query}"
 
-Available TOOLS (you can use these):
-{json.dumps(tool_descriptions, indent=2)}
+        Available TOOLS (you can use these):
+        {json.dumps(tool_descriptions, indent=2)}
 
-Available RESOURCES (you can read these):
-{json.dumps(resource_descriptions, indent=2)}
+        Available RESOURCES (you can read these):
+        {json.dumps(resource_descriptions, indent=2)}
 
-IMPORTANT NOTES:
-- For ALL tools, you MUST include "api_key": "{VALID_API_KEY}" in the arguments
-- For web_search tool, arguments should be: {{"query": "your search", "api_key": "{VALID_API_KEY}", "count": 5, "engine": "auto"}}
-- For search_vulnerabilities tool, you should extract ecosystem from the query (if available) and pass it:
-  {{"query": "semantic query that would be run against the vulnerability database", "api_key": "{VALID_API_KEY}", "ecosystems": ["npm", "PyPI", "Maven", "Go", "Debian"]}}
-- For get_vulnerability_by_id tool, arguments should be: {{"vuln_id": "CVE-XXXX-XXXX", "api_key": "{VALID_API_KEY}"}}
+        IMPORTANT NOTES:
+        - For ALL tools, you MUST include "api_key": "{VALID_API_KEY}" in the arguments
+        - For web_search tool, arguments should be: {{"query": "your search", "api_key": "{VALID_API_KEY}", "count": 5, "engine": "auto"}}
+        - For search_vulnerabilities tool, you should extract ecosystem from the query (if available) and pass it:
+        {{"query": "semantic query that would be run against the vulnerability database", "api_key": "{VALID_API_KEY}", "ecosystems": ["npm", "PyPI", "Maven", "Go", "Debian"]}}
+        - For get_vulnerability_by_id tool, arguments should be: {{"vuln_id": "CVE-XXXX-XXXX", "api_key": "{VALID_API_KEY}"}}
 
-ECOSYSTEM EXTRACTION RULES for search_vulnerabilities:
-- ecosystems: Extract from "Node.js"→["npm"], "Python"→["PyPI"], "Java"→["Maven"], "Go"→["Go"], "Debian/Ubuntu"→["Debian"]
-- If no ecosystem is mentioned, leave ecosystems as empty array []
+        ECOSYSTEM EXTRACTION RULES for search_vulnerabilities:
+        - ecosystems: Extract from "Node.js"→["npm"], "Python"→["PyPI"], "Java"→["Maven"], "Go"→["Go"], "Debian/Ubuntu"→["Debian"]
+        - If no ecosystem is mentioned, leave ecosystems as empty array []
 
-Scratchpad (your notes so far):
-{json.dumps(scratchpad, indent=2)}
+        Scratchpad (your notes so far):
+        {json.dumps(scratchpad, indent=2)}
 
-Return your next action as JSON:
-{{
-  "thought": "<your reasoning about what to do next>",
-  "action": "use_tool" | "use_resource" | "finish",
-  "target": "<tool_name_or_resource_uri>",
-  "arguments": {{"key": "value", "api_key": "{VALID_API_KEY}"}},
-  "expected_result": "<what you hope to get>"
-}}
+        Return your next action as JSON:
+        {{
+        "thought": "<your reasoning about what to do next>",
+        "action": "use_tool" | "use_resource" | "finish",
+        "target": "<tool_name_or_resource_uri>",
+        "arguments": {{"key": "value", "api_key": "{VALID_API_KEY}"}},
+        "expected_result": "<what you hope to get>"
+        }}
 
-If you have completed all necessary steps to answer the question, use "action": "finish".
-"""
+        If you have completed all necessary steps to answer the question, use "action": "finish".
+        """
         resp = await llm.chat.completions.create(
             model=OPENAI_MODEL,
             messages=[{"role": "system", "content": reasoning_prompt}],
@@ -205,15 +208,15 @@ If you have completed all necessary steps to answer the question, use "action": 
 
     # Final Answer Generation
     final_prompt = f"""
-You have finished analyzing the user's question: "{user_query}"
+        You have finished analyzing the user's question: "{user_query}"
 
-Here is your scratchpad of thoughts and results:
-{json.dumps(scratchpad, indent=2)}
+        Here is your scratchpad of thoughts and results:
+        {json.dumps(scratchpad, indent=2)}
 
-Now provide a clear, concise final answer to the user's question.
-Include all relevant information you gathered from tools and resources.
-Format your answer in a user-friendly way.
-"""
+        Now provide a clear, concise final answer to the user's question.
+        Include all relevant information you gathered from tools and resources.
+        Format your answer in a user-friendly way.
+        """
     summary = await llm.chat.completions.create(
         model=OPENAI_MODEL,
         messages=[{"role": "system", "content": final_prompt}],
@@ -225,6 +228,10 @@ Format your answer in a user-friendly way.
     print("="*60)
     print(summary.choices[0].message.content)
     print("="*60)
+
+    final_answer = summary.choices[0].message.content
+
+    return final_answer
 
 
 if __name__ == "__main__":
