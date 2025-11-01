@@ -206,4 +206,9 @@ marimo/_static/
 marimo/_lsp/
 __marimo__/
 
+# Project-specific: Data and storage directories
 osv_data/
+extended_data/
+qdrant_storage/
+models/
+sbom_data/
