@@ -43,7 +43,7 @@ class WebSearchTool:
         
         # Configure SSL - use proper certificates or disable for testing
         if DISABLE_SSL_VERIFY:
-            logger.warning("⚠️  SSL verification is DISABLED - not secure for production!")
+            logger.warning("SSL verification is DISABLED - not secure for production")
             connector = aiohttp.TCPConnector(ssl=False)
         else:
             # Use proper SSL context

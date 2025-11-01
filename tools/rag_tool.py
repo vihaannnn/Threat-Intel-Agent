@@ -50,7 +50,14 @@ class OSVRAGTool:
                 model="text-embedding-3-small",
                 input=text
             )
-            return response.data[0].embedding
+            embedding = response.data[0].embedding
+            
+            # Validate embedding dimension
+            if len(embedding) != 1536:
+                logger.error(f"Embedding dimension mismatch: expected 1536, got {len(embedding)}")
+                raise ValueError(f"Embedding dimension mismatch: expected 1536, got {len(embedding)}")
+            
+            return embedding
         except Exception as e:
             logger.error(f"Error generating embedding: {e}")
             raise
@@ -59,7 +66,9 @@ class OSVRAGTool:
         self, 
         query: str, 
         entities: ExtractedEntities,
-        limit: int = 10
+        limit: int = 10,
+        use_hybrid: bool = False,
+        use_reranking: bool = False
     ) -> Dict[str, Any]:
         """
         Vulnerability search with ecosystem filtering
@@ -68,6 +77,8 @@ class OSVRAGTool:
             query: User's search query
             entities: Entities extracted by LLM
             limit: Maximum number of results to return
+            use_hybrid: Whether to use hybrid search (BM25 + vector) - currently not implemented, ignored
+            use_reranking: Whether to use reranking - currently not implemented, ignored
             
         Returns:
             Dictionary containing search results and metadata
@@ -78,17 +89,39 @@ class OSVRAGTool:
             # Generate embedding for semantic search
             query_embedding = await self.generate_embedding(query)
             
+            # Validate embedding dimension before search
+            if len(query_embedding) != 1536:
+                logger.error(f"Query embedding dimension mismatch: expected 1536, got {len(query_embedding)}")
+                raise ValueError(f"Query embedding dimension mismatch: expected 1536, got {len(query_embedding)}")
+            
             # Build ecosystem filter
             ecosystem_filter = self._build_ecosystem_filter(entities)
             
             # Perform vector search with ecosystem filtering
-            search_results = self.qdrant_client.search(
-                collection_name=self.collection_name,
-                query_vector=query_embedding,
-                query_filter=ecosystem_filter,
-                limit=limit,
-                with_payload=True
-            )
+            try:
+                search_results = self.qdrant_client.search(
+                    collection_name=self.collection_name,
+                    query_vector=query_embedding,
+                    query_filter=ecosystem_filter,
+                    limit=limit,
+                    with_payload=True
+                )
+            except Exception as search_error:
+                # If search fails with OutputTooSmall or similar, try without filter first
+                if "OutputTooSmall" in str(search_error) or "dimension" in str(search_error).lower():
+                    logger.warning(f"Search failed with dimension error, retrying without filter: {search_error}")
+                    try:
+                        search_results = self.qdrant_client.search(
+                            collection_name=self.collection_name,
+                            query_vector=query_embedding,
+                            limit=limit,
+                            with_payload=True
+                        )
+                    except Exception as retry_error:
+                        logger.error(f"Search failed even without filter: {retry_error}")
+                        raise
+                else:
+                    raise
             
             # Process results
             results = []
