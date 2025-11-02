@@ -285,10 +285,13 @@ with st.sidebar:
     st.markdown("### 💡 Example Queries")
     st.markdown("<div style='margin-bottom: 0.5rem;'></div>", unsafe_allow_html=True)
     
+    
+
+
     example_queries = [
-        ("🔍", "How do I remediate CVE-2025-59823?"),
-        ("🔍", "List recent npm vulnerabilities"),
-        ("🔍", "Show Python RCE vulnerabilities"),
+        ("🔍", "Are there any known vulnerabilities specific to machines running both Windows Server 2022 and Docker with privileged containers enabled?"),
+        ("🔍", "What is the risk of running Active Directory on a server that also hosts Kubernetes and exposed Redis?"),
+        ("🔍", "Which vulnerabilities could impact cross-zone authentication if both OpenLDAP and Active Directory are used for federated login in segmented VLANs?"),
     ]
     
     for i, (icon, query) in enumerate(example_queries):
