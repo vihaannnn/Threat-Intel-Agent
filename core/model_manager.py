@@ -270,7 +270,7 @@ def main():
     manager = LocalModelManager()
     
     if len(sys.argv) < 2:
-        print("Usage: python -m utils.model_manager <command>")
+        print("Usage: python -m core.model_manager <command>")
         print("Commands:")
         print("  setup     - Interactive model setup")
         print("  list      - List all models")

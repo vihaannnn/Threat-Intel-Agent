@@ -93,7 +93,7 @@ class LLMProvider:
     def _try_local_model(self, preferred: Optional[str] = None) -> bool:
         """Attempt to initialize a local transformers model. Returns True if successful."""
         try:
-            from utils.model_manager import LocalModelManager
+            from core.model_manager import LocalModelManager
             model_manager = LocalModelManager()
             models_info = model_manager.list_models()
 

@@ -31,7 +31,7 @@ logger = logging.getLogger(__name__)
 EMBEDDING_MODEL = "text-embedding-3-small"
 EMBEDDING_DIMENSION = 1536
 COLLECTION_NAME = "osv_vulnerabilities"
-BATCH_SIZE = 100
+BATCH_SIZE = 50  # Original batch size
 
 
 def generate_embedding(text: str, client: openai.OpenAI) -> List[float]:
@@ -128,7 +128,7 @@ def embed_and_store_data(documents: List[Dict], openai_client: openai.OpenAI, qd
             
             # Create points for Qdrant
             points = []
-            for i, (doc, embedding_data) in enumerate(zip(batch, response.data)):
+            for idx, (doc, embedding_data) in enumerate(zip(batch, response.data)):
                 # Convert string ID to integer for Qdrant compatibility
                 # Use a hash of the string ID to ensure uniqueness
                 point_id = hash(doc["id"]) & 0x7FFFFFFFFFFFFFFF  # Convert to positive 64-bit integer
@@ -164,17 +164,34 @@ def embed_and_store_data(documents: List[Dict], openai_client: openai.OpenAI, qd
 def main():
     """Main setup function"""
     
-    # Check if data directory exists
-    data_dir = Path("osv_data")
+    # Check if data directory exists (look in root directory)
+    # Script can be run from root or from data directory
+    script_dir = Path(__file__).parent
+    root_dir = script_dir.parent
+    data_dir = root_dir / "osv_data"
+    
+    # Try both locations
+    if not data_dir.exists():
+        data_dir = Path("osv_data")  # Try current directory
+    
     if not data_dir.exists():
         logger.error(f"Data directory not found: {data_dir}")
+        logger.error("\n⚠️  You need to collect vulnerability data first!")
+        logger.error("Run the data collector:")
+        logger.error("  python data/osv_collector.py")
+        logger.error("\nThis will download and process vulnerability data from OSV.dev")
         return False
     
     # Check for JSON files
     json_files = list(data_dir.glob("*.json"))
     if len(json_files) <= 1:  # Only collection_summary.json
-        logger.error("No vulnerability data files found")
+        logger.error(f"No vulnerability data files found in {data_dir}")
+        logger.error("Expected files like: npm_vulnerabilities.json, PyPI_vulnerabilities.json, etc.")
+        logger.error("\nRun the data collector first:")
+        logger.error("  python data/osv_collector.py")
         return False
+    
+    logger.info(f"Using data directory: {data_dir}")
     
     logger.info(f"Found {len(json_files) - 1} vulnerability data files")
     

@@ -145,7 +145,7 @@ def main():
     manager = SecretsManager()
     
     if len(sys.argv) < 2:
-        print("Usage: python -m utils.secrets_manager <command>")
+        print("Usage: python -m core.secrets_manager <command>")
         print("Commands:")
         print("  setup     - Interactive API key setup")
         print("  status    - Show current key status")
@@ -184,7 +184,7 @@ def main():
         manager.validate_setup()
     
     else:
-        print("Invalid command. Use 'python -m utils.secrets_manager' for help.")
+        print("Invalid command. Use 'python -m core.secrets_manager' for help.")
 
 if __name__ == "__main__":
     main()

@@ -12,6 +12,14 @@ from typing import Dict, Any, List, Optional
 import re
 
 # Import our components
+import sys
+from pathlib import Path
+
+# Add project root to path for imports
+_project_root = Path(__file__).parent.parent
+if str(_project_root) not in sys.path:
+    sys.path.insert(0, str(_project_root))
+
 from utils.config import OPENAI_KEY, VALID_API_KEY
 from tools.rag_tool import OSVRAGTool, ExtractedEntities
 from tools.web_search import WebSearchTool

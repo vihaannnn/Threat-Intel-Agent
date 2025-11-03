@@ -20,7 +20,7 @@ from qdrant_client import QdrantClient
 from qdrant_client.models import Filter, FieldCondition, MatchValue, Range, MatchAny
 
 from utils.config import OPENAI_KEY
-from utils.embeddings import get_embedding_provider
+from core.embeddings import get_embedding_provider
 
 logger = logging.getLogger("HybridSearch")
 

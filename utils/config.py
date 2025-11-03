@@ -8,7 +8,7 @@ load_dotenv()
 
 # Import secrets manager
 try:
-    from utils.secrets_manager import SecretsManager
+    from core.secrets_manager import SecretsManager
     secrets_manager = SecretsManager()
     SECRETS_AVAILABLE = True
 except ImportError:

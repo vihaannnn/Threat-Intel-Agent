@@ -6,7 +6,7 @@ Central runner for Threat Intelligence Agent
 - Opens Streamlit web UI
 
 Usage:
-  python run_all.py [--local] [--no-docker]
+  python core/run_all.py [--local] [--no-docker]
 
 Flags:
   --local      Prefer local models (PREFER_LOCAL_MODELS=true)
@@ -20,7 +20,7 @@ import subprocess
 import shutil
 from pathlib import Path
 
-ROOT = Path(__file__).parent.resolve()
+ROOT = Path(__file__).parent.parent.resolve()
 
 
 def info(msg: str) -> None:
@@ -135,7 +135,7 @@ def start_streamlit_ui(env: dict) -> int:
     ui_env = os.environ.copy()
     ui_env.update(env)
     # Use Python module syntax to avoid PATH issues
-    return subprocess.call([sys.executable, "-m", "streamlit", "run", "web_ui.py"], cwd=str(ROOT), env=ui_env)
+    return subprocess.call([sys.executable, "-m", "streamlit", "run", "core/web_ui.py"], cwd=str(ROOT), env=ui_env)
 
 
 def check_setup() -> bool:
@@ -176,7 +176,7 @@ def main(argv: list[str]) -> int:
         info("Quick setup:")
         info("  1. python setup_env.py  # Create .env file")
         info("  2. python data/setup_local_qdrant.py  # Set up vector database")
-        info("  3. python run_all.py  # Run the interface")
+        info("  3. python core/run_all.py  # Run the interface")
         return 1
 
     # Resolve env preferences
